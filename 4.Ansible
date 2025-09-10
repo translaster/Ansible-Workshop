@@ -1,0 +1,847 @@
+# 4 - Инвентарь Ansible
+
+## 4.1 - Понимание инвентаря Ansible
+
+Инвентарь Ansible — это файл, содержащий список управляемых узлов. Каждый управляемый узел представлен хостом и может быть частью одной или 
+нескольких групп.
+
+Вот пример инвентаря Ansible:
+
+```
+[web]
+10.135.0.3
+```
+
+После установки Ansible первым шагом является создание инвентаря Ansible и его проверка с помощью модуля ping. Давайте добавим управляемый узел в 
+инвентарь Ansible и пропингуем его.
+
+Создайте новый каталог для хранения наших файлов Ansible:
+
+```
+cd $HOME
+mkdir ansible
+cd ansible
+export MANAGED_NODE_IP=<managed-node-ip>
+```
+
+Добавьте группу с именем "web" в инвентарь Ansible и добавьте управляемый узел в эту группу:
+
+```
+cd $HOME/ansible && cat << EOF > hosts
+[web]
+$MANAGED_NODE_IP
+EOF
+```
+
+Теперь давайте пропингуем управляемый узел с помощью следующей команды:
+
+```
+ansible -i hosts -m ping web
+```
+
+Инвентарь здесь используется с модулем ping для пингования управляемого узла. Однако его можно использовать с любым другим модулем. Также можно 
+использовать инвентарь в плейбуке.
+
+Например, создайте новый плейбук с именем "ping.yml" со следующим содержимым:
+
+```
+cd $HOME/ansible && cat << EOF > ping.yml
+---
+- hosts: web 
+tasks:
+  name: Ping the managed node 
+ping:
+EOF
+```
+
+Запустите плейбук с помощью следующей команды:
+
+```
+ansible-playbook -i hosts ping.yml
+```
+
+На данный момент нас больше всего интересует понимание и создание инвентаря Ansible. Мы узнаем, как использовать инвентарь в плейбуках, в следующих разделах.
+
+Возвращаясь к нашему инвентарю, то же самое можно записать в формате YAML, и вот как это выглядит:
+
+```
+---
+all:
+children:
+web:
+hosts:
+$MANAGED_NODE_IP:
+EOF
+```
+
+Давайте использовать второй формат для нашего инвентаря. Перезапишите файл "hosts" следующим содержимым:
+
+```
+cd $HOME/ansible && cat << EOF > hosts
+---
+all:
+children:
+web:
+hosts:
+$MANAGED_NODE_IP:
+EOF
+```
+
+Проверьте инвентарь с помощью следующей команды:
+
+```
+ansible -i hosts -m ping web
+```
+
+По умолчанию инвентари Ansible могут быть написаны в одном из следующих форматов:
+
+* `host_list`: Простой список хостов
+* `script`: Скрипт, возвращающий список хостов
+* `yaml`: YAML-файл, содержащий список хостов
+* `toml`: TOML-файл, содержащий список хостов
+* `ini`: INI-файл, содержащий список хостов
+
+Чтобы выбрать форматы, которые вы хотите использовать, вы можете обновить файл конфигурации Ansible "/etc/ansible/ansible.cfg" и установить для 
+переменной inventory список форматов, которые вы хотите использовать. Например, если вы хотите поддерживать только формат YAML:
+
+```
+[inventory]
+enable_plugins = yaml
+```
+
+4.2 - Создание расширенных инвентарей Ansible
+
+В этом примере у нас есть группа с именем "web", которая содержит один управляемый узел с IP-адресом "10.135.0.3". В инвентаре Ansible может быть несколько групп и несколько управляемых узлов.
+
+Пример:
+
+```
+# Базовый пример инвентаря с несколькими группами и узлами
+# Группа 'web' для веб-серверов
+[web]
+webserver1.example.com
+webserver2.example.com
+
+# Группа 'db' для серверов баз данных 
+[db]
+dbserver1.example.com
+
+# Группа 'cache' для серверов кэширования, таких как Redis или Memcached 
+[cache]
+cacheserver.example.com
+
+# Группа 'lb' для балансировщиков нагрузки
+[lb]
+loadbalancer.example.com
+
+# Вы также можете определить группу групп, используя суффикс ':children'.
+# Это позволяет применять задачи к нескольким группам одновременно. 
+[production:children]
+web
+db
+cache
+lb
+
+# Переменные можно назначать группам, используя суффикс ':vars'.
+# Это полезно для применения конфигурации ко всем группам. 
+[production:vars]
+ansible_user=deployuser
+ansible_ssh_private_key_file=/path/to/key
+```
+
+Вот еще один пример:
+
+```
+# Расширенный пример инвентаря Ansible
+# Определите хосты веб-серверов с индивидуальными переменными
+# Например, http_port и maxRequestsPerChild являются
+# специфичными для серверов web01 и web02.
+# Это типичные переменные, которые можно использовать в
+# ваших плейбуках для установки Apache и его настройки. 
+[web]
+web01.example.com http_port=80 maxRequestsPerChild=200 
+web02.example.com http_port=8080 maxRequestsPerChild=150
+
+# Определите серверы баз данных
+[db]
+db01.example.com db_name=prod_db db_user=prod_user db_pass=secret 
+db02.example.com db_name=dev_db db_user=dev_user db_pass=devsecret
+
+# Определите группу для серверов мониторинга 
+[monitoring] 
+monitor01.example.com 
+monitor02.example.com
+
+# Определите группу для всех серверов в центре обработки данных США 
+[us_datacenter]
+web01.example.com
+db01.example.com
+monitor01.example.com
+
+# Определите группу для всех серверов в центре обработки данных ЕС 
+[eu_datacenter]
+web02.example.com
+db02.example.com
+monitor02.example.com
+
+# Определите группу 'all_servers', которая включает оба центра обработки данных 
+[all_servers:children]
+us_datacenter eu_datacenter
+
+# Установка переменных, которые применяются ко всем веб-серверам
+[web:vars]
+nginx_version=1.18.0
+
+# Установка переменных для серверов центра обработки данных США
+# ansible_user и ansible_ssh_private_key_file являются
+# встроенными переменными в Ansible, используемыми для определения
+# учетной записи удаленного пользователя и файла закрытого ключа SSH,
+# соответственно, для подключения к управляемым узлам
+[us_datacenter:vars]
+ansible_user=us_admin
+ansible_ssh_private_key_file=/path/to/us/key
+
+# Установка переменных для серверов центра обработки данных ЕС 
+[eu_datacenter:vars]
+ansible_user=eu_admin
+ansible_ssh_private_key_file=/path/to/eu/key
+
+Тот же инвентарь можно записать в формате YAML, и вот как это выглядит:
+
+```
+---
+# Расширенный пример инвентаря Ansible в формате YAML
+all:
+# Группировка хостов по категориям children:
+# Группа веб-серверов
+web:
+hosts:
+web01.example.com:
+http_port: 80
+maxRequestsPerChild: 200
+web02.example.com:
+http_port: 8080
+maxRequestsPerChild: 150
+vars:
+# Переменные, применимые ко всем веб-серверам 
+nginx_version: 1.18.0
+# Группа серверов баз данных
+db:
+hosts:
+db01.example.com:
+db_name: prod_db
+db_user: prod_user
+db_pass: secret
+db02.example.com:
+db_name: dev_db
+db_user: dev_user
+db_pass: devsecret
+# Группа серверов мониторинга monitoring:
+hosts: 
+monitor01.example.com: 
+monitor02.example.com:
+# Группа центра обработки данных США 
+us_datacenter: 
+hosts: 
+web01.example.com: 
+db01.example.com: 
+monitor01.example.com: 
+vars: ansible_user: us_admin
+ansible_ssh_private_key_file: /path/to/us/key
+# Группа центра обработки данных ЕС
+eu_datacenter:
+hosts:
+web02.example.com:
+db02.example.com:
+monitor02.example.com:
+vars:
+ansible_user: eu_admin
+ansible_ssh_private_key_file: /path/to/eu/key
+# Группа, которая включает все серверы в обоих центрах обработки данных all_servers:
+children:
+us_datacenter: eu_datacenter:
+
+## 4.3 - Расширенные методы для таргетинга на определенные управляемые узлы
+
+В предыдущем разделе мы узнали, как создать инвентарь Ansible. В этом разделе мы узнаем, как таргетировать определенные управляемые узлы в инвентаре.
+
+В качестве первого примера давайте представим, что у нас есть следующий инвентарь. Начните с перезаписи файла "hosts" следующим содержимым:
+
+```
+cd $HOME/ansible && cat << EOF > hosts
+all:
+hosts:
+mail.example.com:
+children:
+webservers:
+hosts:
+web01.example.com:
+web02.example.com:
+dbservers:
+hosts:
+one.example.com:
+two.example.com:
+three.example.com:
+east:
+hosts:
+foo.example.com:
+one.example.com:
+two.example.com:
+west:
+hosts:
+bar.example.com:
+three.example.com:
+prod:
+children:
+east:
+test:
+children:
+west:
+EOF
+```
+
+Существуют две группы по умолчанию: "all" и "ungrouped":
+
+* Группа "all" содержит каждый хост.
+
+* Группа "ungrouped" содержит все хосты, которые не принадлежат ни к какой другой группе, кроме "all".
+
+Следовательно, каждый хост всегда будет принадлежать как минимум к двум группам. Мы можем проверить группы хоста с помощью следующей команды:
+
+```
+ansible-inventory -i hosts --graph
+# alternatively: ansible-inventory -i hosts --list
+```
+
+Вывод предыдущей команды:
+
+```
+@all:
+|--@ungrouped:
+| |--mail.example.com
+|--@webservers:
+| |--web01.example.com
+| |--web02.example.com
+|--@dbservers:
+| |--one.example.com
+| |--two.example.com
+| |--three.example.com
+|--@east:
+| |--foo.example.com
+| |--one.example.com
+| |--two.example.com
+|--@west:
+| |--bar.example.com
+| |--three.example.com
+|--@prod:
+| |--@east:
+| | |--foo.example.com
+| | |--one.example.com
+| | |--two.example.com
+|--@test:
+| |--@west:
+| | |--bar.example.com
+| | |--three.example.com
+```
+
+Как видите, хост mail.example.com принадлежит группам "all" и "ungrouped". Хост web01.example.com принадлежит группам "all" и "webservers".
+Чтобы таргетировать негруппированный хост, мы можем использовать следующую команду:
+
+```
+ansible -i hosts mail.example.com -m ping
+```
+
+Чтобы таргетировать определенную группу, мы можем использовать следующую команду:
+
+```
+ansible -i hosts webservers -m ping
+```
+
+Чтобы таргетировать определенный хост из группы, вы можете использовать следующую команду:
+
+```
+ansible -i hosts web01.example.com -m ping
+```
+
+Чтобы таргетировать несколько хостов из разных групп, вы можете использовать следующую команду:
+
+```
+ansible -i hosts 'web01.example.com,one.example.com' -m ping
+```
+
+Вы также можете использовать следующую команду:
+
+```
+ansible -i hosts 'web01.example.com:one.example.com' -m ping
+```
+
+Те же команды можно использовать для таргетинга на несколько групп:
+
+```
+ansible -i hosts 'webservers,dbservers' -m ping
+# or
+ansible -i hosts 'webservers:dbservers' -m ping
+```
+
+Чтобы исключить одну группу из другой группы, вы можете использовать следующую команду:
+
+```
+ansible -i hosts 'east:!dbservers'	-m ping
+```
+
+Чтобы таргетировать пересечение двух групп, вы можете использовать следующую команду:
+
+```
+ansible -i hosts 'east:&dbservers'	-m ping
+```
+
+Есть еще один способ написать ту же команду для таргетинга на определенные хосты, используя опцию -limit:
+
+```
+ansible -i hosts all --limit web01.example.com -m ping
+ansible -i hosts all --limit mail.example.com -m ping
+ansible -i hosts all --limit webservers -m ping 
+ansible -i hosts all --limit 'web01.example.com,one.example.com' -m ping 
+ansible -i hosts all --limit 'webservers:dbservers' -m ping
+ansible -i hosts all --limit 'webservers,&dbservers' -m ping 
+ansible -i hosts all --limit 'webservers:dbservers' -m ping 
+ansible -i hosts all --limit 'east:!dbservers' -m ping
+```
+
+## 4.4 - Использование инвентаря по умолчанию
+
+В предыдущих примерах мы использовали инвентарь, хранящийся в файле. Ansible также имеет инвентарь по умолчанию, который используется, когда инвентарь 
+не указан. Этот инвентарь хранится в файле "/etc/ansible/hosts".
+
+Давайте начнем с создания файла инвентаря:
+
+```
+mkdir -p /etc/ansible/ && cat << EOF > /etc/ansible/hosts
+all:
+children:
+web:
+hosts:
+$MANAGED_NODE_IP:
+EOF
+```
+
+Теперь давайте пропингуем управляемый узел с помощью следующей команды:
+
+```
+ansible -m ping web
+```
+
+Как видите, когда инвентарь не указан, Ansible использует инвентарь по умолчанию. Это проще, чем указывать файл инвентаря каждый раз, когда вы 
+запускаете команду Ansible:
+
+```
+ansible -i hosts -m ping web
+```
+
+## 4.5 - Динамические инвентари
+
+Инвентари, которые мы видели до сих пор, являются статическими инвентарями. Это означает, что инвентарь хранится в файле и остается статическим. 
+Однако Ansible также поддерживает динамические инвентари. Это означает, что инвентарь генерируется динамически скриптом или плагином.
+
+Динамические инвентари полезны, когда у вас есть большое количество управляемых узлов, которые создаются и уничтожаются динамически. Вы также можете 
+использовать динамические инвентари, когда вы не знаете IP-адреса управляемых узлов заранее.
+
+Например, если вы используете облачного провайдера, такого как AWS, вы можете использовать динамический инвентарь для автоматического создания 
+инвентаря на основе экземпляров, работающих в вашей учетной записи AWS.
+
+Динамический инвентарь может быть написан на любом языке, который возвращает JSON. Например, он может быть написан на Python, Bash, Ruby, Perl и т.д. 
+Однако для общих облачных провайдеров уже доступны плагины, которые можно использовать для создания инвентаря. Например, есть плагин для AWS, Azure, 
+Google Cloud, DigitalOcean и т. д.
+
+Чтобы использовать динамический инвентарь в практическом примере, мы собираемся использовать плагин AWS (aws_ec2) для создания инвентаря. Начните с 
+создания двух машин в AWS. Обе машины будут управляться нашим фактическим управляющим узлом.
+
+Следующие требования необходимы на узле контроллера, который выполняет этот инвентарь:
+
+* python >= 3.6
+* boto3 >= 1.26.0
+* botocore >= 1.29.0
+
+Убедитесь, что установлены необходимые пакеты:
+
+```
+apt-get install -y python3-pip
+
+pip3 install boto3==1.33.7 botocore==1.33.7
+```
+
+Не забудьте настроить Ansible для использования плагина AWS. Для этого обновите файл конфигурации Ansible "/etc/ansible/ansible.cfg" и установите для переменной inventory список форматов, которые вы хотите использовать, включая aws_ec2:
+
+```
+cat << EOF > /etc/ansible/ansible.cfg
+[inventory]
+enable_plugins = aws_ec2, host_list, script, yaml, ini, auto, toml 
+EOF
+```
+
+Мы создадим два управляемых Ansible узла EC2 в AWS. Мы собираемся пометить первую машину следующими тегами:
+
+* Name: "mysql-machine" (Имя: "mysql-машина")
+* Role: "mysql" (Роль: "mysql")
+
+Мы также собираемся пометить вторую машину следующими тегами:
+
+* Name: "web-machine" (Имя: "web-машина")
+
+* Role: "web" (Роль: "web")
+
+Сначала создайте пару ключей SSH. Следующая команда создает пару ключей и сохраняет закрытый ключ в файл:
+
+```
+aws ec2 create-key-pair \
+--key-name MyKeyPair \
+--query 'KeyMaterial' \
+--output text > MyKeyPair.pem
+```
+
+Измените "MyKeyPair" на имя по вашему выбору. Закрытый ключ будет сохранен как "MyKeyPair.pem".
+
+Убедитесь, что установлены правильные разрешения для файла ключа:
+
+```
+chmod 400 MyKeyPair.pem
+```
+
+Чтобы управлять машинами, Ansible необходимо подключиться к ним с помощью SSH. Для этого нам нужно скопировать открытый ключ на управляющий узел, если это еще не сделано.
+
+```
+export CONTROL_NODE_IP=[THE_CONTROL_NODE_IP]
+scp MyKeyPair.pem root@$CONTROL_NODE_IP:~/.ssh/
+```
+
+Теперь перейдите к AWS и создайте группу безопасности, которая разрешает доступ SSH со всех IP-адресов:
+
+```
+aws ec2 create-security-group \
+--group-name MySecurityGroup \
+--description "Security group for SSH access" (Группа безопасности для доступа SSH)
+```
+
+Измените группу безопасности, чтобы разрешить входящий трафик SSH (порт 22) со всех IP-адресов:
+
+```
+aws ec2 authorize-security-group-ingress \
+--group-name MySecurityGroup \
+--protocol tcp \
+--port 22 \
+--cidr 0.0.0.0/0
+```
+
+Мы собираемся использовать Ubuntu 22.04 на обеих машинах, поэтому начните с поиска AMI ID для Ubuntu 22.04 в облачных образах Ubuntu.
+
+Экспортируйте AMI ID в переменную среды, а также регион AWS, который вы используете (например, eu-west-3):
+
+```
+export AMI_ID=[THE_AMI_ID]
+export AWS_REGION=[THE_AWS_REGION]
+```
+
+Для примера, в моем случае я использую регион eu-west-3, а AMI ID — `ami-00983e8a26e4c9bd9`:
+
+```
+export AMI_ID=ami-00983e8a26e4c9bd9
+export AWS_REGION=eu-west-3
+```
+
+Запустите машину MySQL с помощью следующей команды:
+
+```
+aws ec2 run-instances \
+--image-id $AMI_ID \
+--count 1 \
+--instance-type t2.micro \
+--key-name MyKeyPair \
+--security-groups MySecurityGroup \
+--region $AWS_REGION \
+--tag-specifications \
+'ResourceType=instance,Tags=[{Key=Name,Value=mysql-machine},{Key=Ro\ le,Value=mysql}]'
+```
+
+Запустите веб-машину с помощью следующей команды:
+
+```
+aws ec2 run-instances \
+--image-id $AMI_ID \
+--count 1 \
+--instance-type t2.micro \
+--key-name MyKeyPair \
+--security-groups MySecurityGroup \
+--region $AWS_REGION \
+--tag-specifications \
+'ResourceType=instance,Tags=[{Key=Name,Value=web-machine},{Key=Role\ ,Value=web}]'
+```
+
+Вы можете проверить статус экземпляров с помощью следующей команды (установите jq, если он еще не установлен, с помощью `apt-get install jq`):
+
+```
+aws ec2 describe-instances --region $AWS_REGION | \
+jq '.Reservations[].Instances[] | {
+      Name: (if (.Tags[]? | select(.Key == "Name")) then
+                (.Tags[] | select(.Key == "Name") | .Value)
+            else
+               "N/A"
+            end),
+      State: .State.Name,
+      IP: (if .PublicIpAddress then
+              .PublicIpAddress
+          else
+             "N/A"
+          end)
+    }'
+
+Мы еще не закончили. Нам нужно настроить плагин AWS для использования наших учетных данных AWS. Конфигурации требуют, чтобы мы предоставили ключ 
+доступа AWS и секретный ключ. Для этого нам нужно создать пользователя IAM. Ключи API будут использоваться плагином для подключения к AWS и создания инвентаря.
+
+Используйте следующую команду для создания нового пользователя IAM с программным доступом:
+
+```
+aws iam create-user --user-name MyIAMUserForPlugin
+aws iam create-access-key --user-name MyIAMUserForPlugin
+```
+
+Вы должны извлечь идентификатор ключа доступа и секретный ключ доступа из вывода предыдущей команды, так как мы собираемся использовать их на 
+следующем шаге с переменными среды AWS_ACCESS_KEY_ID и AWS_SECRET_ACCESS_KEY.
+
+Прежде чем мы сможем использовать пользователя IAM, нам нужно прикрепить к нему политику. Мы собираемся прикрепить политику "IAMFullAccess" к 
+пользователю. Эта политика позволяет пользователю управлять пользователями и группами IAM.
+
+```
+aws iam attach-user-policy \
+  --user-name MyIAMUserForPlugin \
+  --policy-arn arn:aws:iam::aws:policy/IAMFullAccess
+```
+
+Теперь экспортируйте идентификатор ключа доступа и секретный ключ доступа в переменные среды из предыдущего шага:
+
+```
+export AWS_ACCESS_KEY_ID=[THE_ACCESS_KEY_ID]
+export AWS_SECRET_ACCESS_KEY=[THE_SECRET_ACCESS_KEY]
+```
+
+Пример:
+
+```
+export AWS_ACCESS_KEY_ID=AKF26Q4LRT24FCLX2WLU31
+export AWS_SECRET_ACCESS_KEY=AAWRE1tWOWQX1cHDIJKVGgork20greETTyATleDic
+```
+
+Создайте JSON-файл (например, "my-policy-document.json") с определением политики. Ниже приведен базовый пример того, что может содержать этот файл.
+
+```
+cat << EOF > my-policy-document.json
+{
+"Version": "2012-10-17",
+"Statement": [
+{
+"Action": [
+"ec2:*"
+],
+"Resource": "*",
+"Effect": "Allow"
+}
+]
+}
+EOF
+```
+
+Теперь используйте AWS CLI для создания политики из JSON-файла и прикрепите ее к пользователю IAM.
+
+```
+# Create the policy (Создать политику)
+policy_arn=$(aws iam create-policy \
+  --policy-name MyCustomPolicy \
+  --policy-document file://my-policy-document.json \
+| jq -r '.Policy.Arn')
+# Attach the policy to the IAM user (Прикрепить политику к пользователю IAM) 
+aws iam attach-user-policy \
+  --user-name MyIAMUserForPlugin \ 
+  --policy-arn $policy_arn
+```
+
+Чтобы выполнить это, создайте новый файл с именем "aws_ec2.yml" в каталоге "/etc/ansible" со следующим содержимым:
+
+```
+cat << EOF > /etc/ansible/aws_ec2.yml
+---
+plugin: aws_ec2
+aws_access_key: "$AWS_ACCESS_KEY_ID"
+aws_secret_key: "$AWS_SECRET_ACCESS_KEY"
+regions:
+     "$AWS_REGION" keyed_groups:
+     key: tags prefix: tag
+EOF
+
+Теперь давайте проверим инвентарь с помощью следующей команды:
+
+```
+ansible-inventory -i /etc/ansible/aws_ec2.yml --graph
+```
+
+Вывод предыдущей команды выглядит следующим образом:
+
+```
+@all:
+|--@ungrouped:
+|--@aws_ec2:
+| |--ec2-35-180-135-22.eu-west-3.compute.amazonaws.com
+| |--ec2-35-180-31-159.eu-west-3.compute.amazonaws.com
+|--@tag_Name_mysql_machine:
+| |--ec2-35-180-135-22.eu-west-3.compute.amazonaws.com
+|--@tag_Role_mysql:| |--ec2-35-180-135-22.eu-west-3.compute.amazonaws.com
+|--@tag_Name_web_machine:
+| |--ec2-35-180-31-159.eu-west-3.compute.amazonaws.com
+|--@tag_Role_web:
+| |--ec2-35-180-31-159.eu-west-3.compute.amazonaws.com
+```
+
+Что мы здесь видим, так это то, что инвентарь генерируется динамически плагином AWS. Плагин использует API AWS для получения списка экземпляров, а затем генерирует инвентарь на основе тегов экземпляров.
+
+У нас есть 7 групп:
+
+* "all": содержит все хосты.
+* "ungrouped": содержит все хосты, которые не принадлежат к другой группе.
+* "aws_ec2": содержит все хосты, которые управляются плагином AWS.
+* "tag_Name_mysql_machine": содержит хосты, у которых есть тег Name со значением mysql-machine. (машина)
+* "tag_Name_web_machine": содержит хосты, у которых есть тег Name со значением web-machine. (машина)
+* "tag_Role_mysql": содержит хосты, у которых есть тег Role со значением mysql.
+* "tag_Role_web": содержит хосты, у которых есть тег Role со значением web.
+
+Выбор тегов в качестве механизма группировки настраивается с помощью опции keyed_groups.
+
+```
+---
+plugin: aws_ec2
+aws_access_key: "$AWS_ACCESS_KEY_ID"
+aws_secret_key: "$AWS_SECRET_ACCESS_KEY"
+regions:
+- "$AWS_REGION" 
+keyed_groups:
+- key: tags # <---- Here (Здесь) 
+prefix: tag # <---- and here (и здесь)
+```
+
+Мы можем выбрать любой другой механизм группировки. Например, мы можем сгруппировать экземпляры по их типу экземпляра:
+
+```
+cat << EOF > /etc/ansible/aws_ec2.yml
+---
+plugin: aws_ec2
+aws_access_key: "$AWS_ACCESS_KEY_ID"
+aws_secret_key: "$AWS_SECRET_ACCESS_KEY"
+regions:
+- "$AWS_REGION" 
+keyed_groups:
+- key: instance_type 
+prefix: instance_type
+EOF
+```
+
+Теперь давайте проверим инвентарь с помощью следующей команды:
+
+```
+ansible-inventory -i /etc/ansible/aws_ec2.yml --graph
+```
+
+Список других атрибутов группировки для экземпляров AWS EC2 можно найти, выполнив следующую команду:
+
+```
+ansible-inventory -i /etc/ansible/aws_ec2.yml --list | jq '._meta.hostv ars[]'
+```
+Можно использовать два или более механизма группировки одновременно. Например, мы можем сгруппировать экземпляры по их типу экземпляра и зоне доступности:
+
+```
+cat << EOF > /etc/ansible/aws_ec2.yml
+---
+plugin: aws_ec2
+aws_access_key: "$AWS_ACCESS_KEY_ID"
+aws_secret_key: "$AWS_SECRET_ACCESS_KEY"
+regions:
+- "$AWS_REGION" 
+keyed_groups:
+- key: instance_type 
+prefix: instance_type
+- key: placement.availability_zone 
+prefix: availability_zone
+EOF
+```
+
+Проверьте инвентарь с помощью следующей команды:
+
+```
+ansible-inventory -i /etc/ansible/aws_ec2.yml --graph
+```
+
+Теперь, поскольку инвентарь генерируется динамически, мы можем использовать его с любым модулем Ansible. Например, мы можем пропинговать все 
+экземпляры с помощью следующей команды:
+
+```
+ansible \
+  --private-key=~/.ssh/MyKeyPair.pem \
+  -i /etc/ansible/aws_ec2.yml \
+  --user=ubuntu \
+  -m ping all
+```
+
+Мы можем пропинговать экземпляры, которые являются частью группы (например, instance_type_t2_micro):
+
+```
+ansible \
+  --private-key=~/.ssh/MyKeyPair.pem \
+  -i /etc/ansible/aws_ec2.yml \
+  --user=ubuntu \
+  -m ping instance_type_t2_micro
+```
+
+Как видите, поскольку машины AWS Ubuntu используют пользователя "ubuntu", нам нужно указать опцию --user. Нам также нужно указать закрытый ключ с помощью опции --private-key.
+
+Теперь вы можете очистить ресурсы, которые мы создали в AWS.
+
+```
+# Get instance IDs for instances with "Name: mysql-machine" tag (Получить идентификаторы экземпляров для экземпляров с тегом "Name: mysql-machine") 
+mysql_instance_ids=$(aws ec2 describe-instances \
+  --query "Reservations[*].Instances[?Tags[?Key=='Name'&&Value=='mysql-\
+machine']].InstanceId" \
+  --output text)
+# Get instance IDs for instances with "Name: web-machine" tag (Получить идентификаторы экземпляров для экземпляров с тегом "Name: web-machine")
+web_instance_ids=$(aws ec2 describe-instances \
+  --query "Reservations[*].Instances[?Tags[?Key=='Name'&&Value=='web-ma\
+chine']].InstanceId" \
+  --output text)
+# Terminate the instances (Завершить экземпляры)
+aws ec2 terminate-instances \
+  --instance-ids $mysql_instance_ids $web_instance_ids
+# Detach policies attached to specified entities 
+for user in $(aws iam list-entities-for-policy \
+ (Отсоединить политики, прикрепленные к указанным сущностям для пользователя в $(aws iam list-entities-for-policy \)
+  --policy-arn $policy_arn \
+  --query 'PolicyUsers[*].UserName' --output text); do 
+    aws iam detach-user-policy \
+      --user-name $user \
+      --policy-arn $policy_arn
+done
+# Delete the custom policy (Удалить пользовательскую политику)
+aws iam delete-policy \
+  --policy-arn $policy_arn
+# Delete access keys for a specific user (Удалить ключи доступа для определенного пользователя)
+for access_key in $(aws iam list-access-keys \
+  --user-name MyIAMUserForPlugin \
+  --query 'AccessKeyMetadata[*].AccessKeyId' --output text); do 
+    aws iam delete-access-key \
+      --access-key-id $access_key \
+      --user-name MyIAMUserForPlugin
+done
+# Delete an IAM user (Удалить пользователя IAM) 
+aws iam delete-user \
+  --user-name MyIAMUserForPlugin
+# Delete a specified IAM policy (Удалить указанную политику IAM) 
+aws iam delete-policy \
+  --policy-arn $policy_arn
+# Delete the key pair (Удалить пару ключей)
+aws ec2 delete-key-pair \
+  --key-name MyKeyPair
+```
